@@ -3,13 +3,15 @@ from pyspark.sql.window import Window
 from pyspark.sql.types import *
 from pyspark.sql.functions import when, to_timestamp, split, lpad, concat, collect_list, rank, col, count, isnan, lit, sum
 import datetime
+from pyspark import SparkConf, SparkContext
 
 #Creating global variables
 storage_path = 'gs://practicebucketpiyush/'
 current_date = datetime.datetime.now().strftime ("%Y-%m-%d")
 
 #Creating spark context
-sc = spark.sparkContext
+sc = SparkContext()
+sqlContext = SQLContext(sc)
 
 def check_if_file_exists(filepath):
   testrdd = sc.textFile(filepath).map(lambda line: line.split(","))
@@ -19,7 +21,7 @@ def check_if_file_exists(filepath):
     return True
 
 def read_file(filepath):
-  return spark.read.option("header","true").csv(filepath)
+  return sqlContext.read.option("header","true").csv(filepath)
 
 #Function for counting not null values
 def count_not_null(c, nan_as_null=False):
@@ -28,7 +30,7 @@ def count_not_null(c, nan_as_null=False):
 
 
 #Main Method starts here
-if __name__ = "__main__":
+if __name__ == "__main__":
   print("################################################################")
   print("Execution Starts here")
   #Read fact files
@@ -38,7 +40,7 @@ if __name__ = "__main__":
     trans_fact_1 = read_file(storage_path + "trans_fact_1.csv")
     print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_1 read")
     fileExists = False
-  else: read
+  else:
     print("trans_fact_1.csv doesn't exist")
   fileExists = check_if_file_exists(storage_path + "trans_fact_2.csv")
   if fileExists: 
@@ -198,7 +200,7 @@ if __name__ = "__main__":
             driver='com.mysql.jdbc.Driver',
             dbtable='totals',
             user='assignment_user',
-
+            password='Pa$$word').mode('overwrite').save()
   #Making transaction date consistent (/,-, consistent) and replacing day part of the trans_dt to 01 to calculate monthly aggregate
   df_trans_date_slash = df.filter(df.trans_dt.contains('/'))
   split_col = split(df_trans_date_slash['trans_dt'], '/')
@@ -240,9 +242,6 @@ if __name__ = "__main__":
 
   print("Execution Starts here")
   print("################################################################")
-  
+
   #Killing spark context
   sc.stop()
-
-
-
