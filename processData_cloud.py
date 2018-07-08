@@ -1,20 +1,19 @@
+from pyspark import SparkConf, SparkContext
 from pyspark.sql import SQLContext
 from pyspark.sql.window import Window
 from pyspark.sql.types import *
 from pyspark.sql.functions import when, to_timestamp, split, lpad, concat, collect_list, rank, col, count, isnan, lit, sum
 import datetime
-from pyspark import SparkConf, SparkContext
+from subprocess import Popen, PIPE
+import re
 
 #Creating global variables
-storage_path = 'gs://practicebucketpiyush/'
+bucket_name = 'practicebucketpiyush'
+storage_path = 'gs://' + bucket_name + "/"
 current_date = datetime.datetime.now().strftime ("%Y-%m-%d")
 
-#Creating spark context
-sc = SparkContext()
-sqlContext = SQLContext(sc)
-
-def check_if_file_exists(filepath):
-  testrdd = sc.textFile(filepath).map(lambda line: line.split(","))
+def check_if_file_exists(filepath, sparkcontext):
+  testrdd = sparkcontext.textFile(filepath).map(lambda line: line.split(","))
   if testrdd.isEmpty():
     return False
   else:
@@ -28,130 +27,53 @@ def count_not_null(c, nan_as_null=False):
     pred = col(c).isNotNull() & (~isnan(c) if nan_as_null else lit(True))
     return sum(pred.cast("integer")).alias(c)
 
-
 #Main Method starts here
 if __name__ == "__main__":
+
   print("################################################################")
   print("Execution Starts here")
-  #Read fact files
-  fileExists = False
-  fileExists = check_if_file_exists(storage_path + "trans_fact_1.csv")
-  if fileExists: 
-    trans_fact_1 = read_file(storage_path + "trans_fact_1.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_1 read")
-    fileExists = False
-  else:
-    print("trans_fact_1.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_2.csv")
-  if fileExists: 
-    trans_fact_2 = read_file(storage_path + "trans_fact_2.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_2 read")
-    fileExists = False
-  else:
-    print("trans_fact_2.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_3.csv")
-  if fileExists: 
-    trans_fact_3 = read_file(storage_path + "trans_fact_3.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_3 read")
-    fileExists = False
-  else:
-    print("trans_fact_3.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_4.csv")
-  if fileExists: 
-    trans_fact_4 = read_file(storage_path + "trans_fact_4.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_4 read")
-    fileExists = False
-  else:
-    print("trans_fact_4.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_5.csv")
-  if fileExists: 
-    trans_fact_5 = read_file(storage_path + "trans_fact_5.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_5 read")
-    fileExists = False
-  else:
-    print("trans_fact_5.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_6.csv")
-  if fileExists: 
-    trans_fact_6 = read_file(storage_path + "trans_fact_6.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_6 read")
-    fileExists = False
-  else:
-    print("trans_fact_6.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_7.csv")
-  if fileExists: 
-    trans_fact_7 = read_file(storage_path + "trans_fact_7.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_7 read")
-    fileExists = False
-  else:
-    print("trans_fact_7.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_8.csv")
-  if fileExists: 
-    trans_fact_8 = read_file(storage_path + "trans_fact_8.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_8 read")
-    fileExists = False
-  else:
-    print("trans_fact_8.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_9.csv")
-  if fileExists: 
-    trans_fact_9 = read_file(storage_path + "trans_fact_9.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_9 read")
-    fileExists = False
-  else:
-    print("trans_fact_9.csv doesn't exist")
-  fileExists = check_if_file_exists(storage_path + "trans_fact_10.csv")
-  if fileExists: 
-    trans_fact_10 = read_file(storage_path + "trans_fact_10.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "trans_fact_10 read")
-    fileExists = False
-  else:
-    print("trans_fact_10.csv doesn't exist")
-  #Reading product file
-  fileExists = check_if_file_exists(storage_path + "product.csv")
-  if fileExists: 
-    product = read_file(storage_path + "product.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "product file read")
-    fileExists = False
-  else:
-    print("product.csv doesn't exist")
-  #Reading location file
-  fileExists = check_if_file_exists(storage_path + "location.csv")
-  if fileExists: 
-    location = read_file(storage_path + "location.csv")
-    print(current_date + datetime.datetime.now().strftime(' %H:%M:%S') + "location file read")
-    fileExists = False
-  else:
-    print("location.csv doesn't exist")
 
-  #Rearranging Columns for all dataframe to combine them later
-  trans_fact_2 = trans_fact_2.select(trans_fact_1.columns)
-  trans_fact_3 = trans_fact_3.select(trans_fact_1.columns)
-  trans_fact_4 = trans_fact_4.select(trans_fact_1.columns)
-  trans_fact_5 = trans_fact_5.select(trans_fact_1.columns)
+  #Creating spark context
+  sc = SparkContext()
+  sqlContext = SQLContext(sc)
 
-  trans_fact_7 = trans_fact_7.select(trans_fact_6.columns)
-  trans_fact_8 = trans_fact_8.select(trans_fact_6.columns)
-  trans_fact_9 = trans_fact_9.select(trans_fact_6.columns)
-  trans_fact_10 = trans_fact_10.select(trans_fact_6.columns)
+  #Creating an empty dataframe for loading fact file
+  schema = StructType([StructField("field1", StringType(), True),
+                      StructField("field2", StringType(), True),
+                      StructField("field3", StringType(), True),
+                      StructField("field4", StringType(), True),
+                      StructField("field5", StringType(), True),
+                      StructField("field6", StringType(), True),
+                      StructField("field7", StringType(), True)])
 
-  #Combining fact tables 1 to 5 
-  trans_fact_grp_1 = trans_fact_1.union(trans_fact_2).union(trans_fact_3).union(trans_fact_4).\
-                                       union(trans_fact_5)
-  trans_fact_grp_2 = trans_fact_6.union(trans_fact_7).union(trans_fact_8).union(trans_fact_9).\
-                                       union(trans_fact_10)
-  #renaming trans_id column of grp 2 to macth with grp 1                                     
-  trans_fact_grp_2 = trans_fact_grp_2.withColumnRenamed("trans_id", "trans_key")
+  df = sqlContext.createDataFrame(sc.emptyRDD(), schema)
 
-  #Rearranging columns before merging dataframe
-  trans_fact_grp_2 = trans_fact_grp_2.select(trans_fact_grp_1.columns)
+  #Gathering File names from the input bucket
+  cmd = ('hdfs dfs -ls gs://' + bucket_name).split()
+  proc = Popen(cmd, stdout=PIPE)
+  filenames = proc.communicate()[0].decode().split('\n')
+  filenames = [s for s in filenames if bucket_name in s]
+  files = [re.search(bucket_name + '/(.+)', file).group(1) for file in filenames]
 
-  #combining both groups to create a combined trans_fact dataframe
-  trans_fact = trans_fact_grp_1.union(trans_fact_grp_2)
-
+  for file in files:
+    if 'location' in file:
+      location = read_file(storage_path + file)
+    elif 'product' in file:
+      product = read_file(storage_path + file)
+    else:
+      temp_df = read_file(storage_path + file)
+      if 'store_location_key' in temp_df.columns[0]:
+        df = temp_df.union(df)
+      if 'trans_id' in temp_df.columns[6]:
+        temp_df = read_file(storage_path + file)
+        temp_df = temp_df.withColumnRenamed("trans_id", "trans_key")
+        temp_df = temp_df.select(df.columns)
+        df = temp_df.union(df)
 
   #Combining all dataframes
-  df = trans_fact.join(location,trans_fact.store_location_key==location.store_location_key,"left_outer").\
+  df = df.join(location,df.store_location_key==location.store_location_key,"left_outer").\
                       drop(location.store_location_key).\
-                          join(product,trans_fact.product_key==product.product_key,"left_outer").\
+                          join(product,df.product_key==product.product_key,"left_outer").\
                               drop(product.product_key)
 
   #Filling NAs in dataframe for units and sales with 0
@@ -240,7 +162,7 @@ if __name__ == "__main__":
   #Uncache df
   df.unpersist()
 
-  print("Execution Starts here")
+  print("Execution ends here")
   print("################################################################")
 
   #Killing spark context
