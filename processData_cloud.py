@@ -2,10 +2,11 @@ from pyspark import SparkConf, SparkContext
 from pyspark.sql import SQLContext
 from pyspark.sql.window import Window
 from pyspark.sql.types import *
-from pyspark.sql.functions import when, to_timestamp, split, lpad, concat, collect_list, rank, col, count, isnan, lit, sum
+from pyspark.sql.functions import when, to_timestamp, split, lpad, concat, collect_list, rank, col, count, isnan, lit, sum, round
 import datetime
 from subprocess import Popen, PIPE
 import re
+
 
 #Creating global variables
 bucket_name = 'practicebucketpiyush'
@@ -19,7 +20,7 @@ def check_if_file_exists(filepath, sparkcontext):
   else:
     return True
 
-def read_file(filepath):
+def read_file(filepath, sqlContext):
   return sqlContext.read.option("header","true").csv(filepath)
 
 #Function for counting not null values
@@ -57,15 +58,15 @@ if __name__ == "__main__":
 
   for file in files:
     if 'location' in file:
-      location = read_file(storage_path + file)
+      location = read_file(storage_path + file, sqlContext)
     elif 'product' in file:
-      product = read_file(storage_path + file)
+      product = read_file(storage_path + file, sqlContext)
     else:
-      temp_df = read_file(storage_path + file)
+      temp_df = read_file(storage_path + file, sqlContext)
       if 'store_location_key' in temp_df.columns[0]:
         df = temp_df.union(df)
       if 'trans_id' in temp_df.columns[6]:
-        temp_df = read_file(storage_path + file)
+        temp_df = read_file(storage_path + file, sqlContext)
         temp_df = temp_df.withColumnRenamed("trans_id", "trans_key")
         temp_df = temp_df.select(df.columns)
         df = temp_df.union(df)
@@ -158,7 +159,60 @@ if __name__ == "__main__":
             dbtable='trends',
             user='assignment_user',
             password='Pa$$word').mode('overwrite').save()
-
+  #%%%%%%%%%%Top State
+  top_provinces = df.groupby('customer_type','province').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
+  window = Window.partitionBy(top_provinces['customer_type']).orderBy(top_provinces['total'].desc())
+  top_provinces = top_provinces.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("customer_type","province","total")
+  top_provinces.write.format('jdbc').options(
+            url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+            driver='com.mysql.jdbc.Driver',
+            dbtable='top_provinces',
+            user='assignment_user',
+            password='Pa$$word').mode('overwrite').save()
+  #%%%%%%%%%%Top Store
+  top_stores = df.groupby('customer_type','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
+  window = Window.partitionBy(top_stores['customer_type']).orderBy(top_stores['total'].desc())
+  top_stores = top_stores.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("customer_type","store_num","total")
+  top_stores.write.format('jdbc').options(
+            url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+            driver='com.mysql.jdbc.Driver',
+            dbtable='top_stores',
+            user='assignment_user',
+            password='Pa$$word').mode('overwrite').save()
+  #%%%%%%%%%%Top store each province, customer type
+  top_stores_provinces = df.groupby('customer_type','province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','province','total', ascending=False)
+  window = Window.partitionBy(top_stores_provinces['customer_type'], top_stores_provinces['province']).orderBy(top_stores_provinces['total'].desc())
+  top_stores_provinces = top_stores_provinces.select('*', rank().over(window).alias('rank')).filter(col('rank') == 1).select("customer_type","province","store_num","total")
+  top_stores_provinces.write.format('jdbc').options(
+          url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+          driver='com.mysql.jdbc.Driver',
+          dbtable='top_stores_provinces',
+          user='assignment_user',
+          password='Pa$$word').mode('overwrite').save() 
+  #Top store average store overall
+  top_stores_provinces_overall = df.groupby('province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('province','total', ascending=False)
+  average_store_province_overall = top_stores_provinces_overall.groupby('province').agg({'total':'avg'}).withColumnRenamed("avg(total)", "average").orderBy('average', ascending=False)
+  window = Window.partitionBy(top_stores_provinces_overall['province']).orderBy(top_stores_provinces_overall['total'].desc())
+  top_stores_provinces_overall = top_stores_provinces_overall.select('*', rank().over(window).alias('rank')).filter(col('rank') == 1).select("province","store_num","total")
+  top_to_average_overall = top_stores_provinces_overall.join(average_store_province_overall, top_stores_provinces_overall.province == average_store_province_overall.province).drop(average_store_province_overall.province).\
+                           select("province", "store_num", "total", "average")
+  top_to_average_overall = top_to_average_overall.withColumn("performance_to_average", concat(round(top_to_average_overall['total']*100/top_to_average_overall['average']), lit('%')))
+  top_to_average_overall.write.format('jdbc').options(
+          url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+          driver='com.mysql.jdbc.Driver',
+          dbtable='top_to_average_overall',
+          user='assignment_user',
+          password='Pa$$word').mode('overwrite').save() 
+  #top 5 store by province
+  top5_stores_by_province = df.groupby('province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('province','total', ascending=False)
+  window = Window.partitionBy(top5_stores_by_province['province']).orderBy(top5_stores_by_province['total'].desc())
+  top5_stores_by_province = top5_stores_by_province.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 5).select("province","store_num","total")    
+  top5_stores_by_province.write.format('jdbc').options(
+        url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+        driver='com.mysql.jdbc.Driver',
+        dbtable='top5_stores_by_province',
+        user='assignment_user',
+        password='Pa$$word').mode('overwrite').save() 
   #Uncache df
   df.unpersist()
 
