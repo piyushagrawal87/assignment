@@ -210,7 +210,7 @@ if __name__ == "__main__":
   totals = totals.union(temp.select('customer_type','total','measure'))
   temp = df.select('collector_key').distinct().agg({'collector_key':'count'}).withColumnRenamed("count(collector_key)", "total")
   temp = temp.withColumn('measure', lit('total distinct collectors'))
-  temp = temp.withColumn('customer_type', lit('All'))
+  temp = temp.withColumn('customer_type', lit('Overall'))
   totals = totals.union(temp.select('customer_type','total','measure'))
   totals.write.format('jdbc').options(
             url='jdbc:mysql://35.238.212.81:3306/assignment_db',
