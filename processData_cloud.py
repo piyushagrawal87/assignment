@@ -2,7 +2,7 @@ from pyspark import SparkConf, SparkContext
 from pyspark.sql import SQLContext
 from pyspark.sql.window import Window
 from pyspark.sql.types import *
-from pyspark.sql.functions import when, to_timestamp, split, lpad, concat, collect_list, rank, col, count, isnan, lit, sum, round
+from pyspark.sql.functions import when, to_timestamp, split, lpad, concat, collect_list, rank, col, count, isnan, lit, sum, round, first
 import datetime
 from subprocess import Popen, PIPE
 import re
@@ -71,6 +71,10 @@ if __name__ == "__main__":
         temp_df = temp_df.select(df.columns)
         df = temp_df.union(df)
 
+  '''
+  Step 3: Prepare & Cleanse the data in memory
+  Prepare the data by combining the 10 trans fact files and replacing any null sales and null units with zero.
+  '''
   #Combining all dataframes
   df = df.join(location,df.store_location_key==location.store_location_key,"left_outer").\
                       drop(location.store_location_key).\
@@ -86,20 +90,103 @@ if __name__ == "__main__":
   #Bring df to cache
   df.cache()
 
-  #%%%%%%%%%%%Total Sales by cutomer type%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  '''
+  Step 4: Transform the data in memory
+  The president of company wants to understand which provinces and stores are performing well and 
+  how much are the top stores in each province performing compared with the average store of the province.
+  '''
+  top_stores_provinces_overall = df.groupby('province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('province','total', ascending=False)
+  average_store_province_overall = top_stores_provinces_overall.groupby('province').agg({'total':'avg'}).withColumnRenamed("avg(total)", "average").orderBy('average', ascending=False)
+  window = Window.partitionBy(top_stores_provinces_overall['province']).orderBy(top_stores_provinces_overall['total'].desc())
+  top_stores_provinces_overall = top_stores_provinces_overall.select('*', rank().over(window).alias('rank')).filter(col('rank') == 1).select("province","store_num","total")
+  top_to_average_overall = top_stores_provinces_overall.join(average_store_province_overall, top_stores_provinces_overall.province == average_store_province_overall.province).drop(average_store_province_overall.province).\
+                           select("province", "store_num", "total", "average")
+  top_to_average_overall = top_to_average_overall.withColumn("performance_to_average", concat(round(top_to_average_overall['total']*100/top_to_average_overall['average']), lit('%')))
+  top_to_average_overall.write.format('jdbc').options(
+          url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+          driver='com.mysql.jdbc.Driver',
+          dbtable='top_to_average_overall',
+          user='assignment_user',
+          password='Pa$$word').mode('overwrite').save() 
+
+  '''
+  Step 5: Transform the data in memory
+  The president further wants to know how customers in the loyalty program are performing compared to 
+  non-loyalty customers and what category of products is contributing to most of ACME’s sales
+  '''
+  #loyalty_vs_nonloyalty
+  loyalty_vs_nonloyalty = df.groupby('customer_type').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").groupby().pivot("customer_type").agg(first("total"))
+  loyalty_vs_nonloyalty = loyalty_vs_nonloyalty.withColumn("performance", concat(round(loyalty_vs_nonloyalty['Loyalty']*100/loyalty_vs_nonloyalty['NonLoyalty']),lit('%')))
+  loyalty_vs_nonloyalty.write.format('jdbc').options(
+          url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+          driver='com.mysql.jdbc.Driver',
+          dbtable='loyalty_vs_nonloyalty',
+          user='assignment_user',
+          password='Pa$$word').mode('overwrite').save() 
+  #Categories and sales
+  top10_categories = df.groupby('category').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy("total",ascending=False) 
+  window =  Window.partitionBy().orderBy(top10_categories['total'].desc())
+  top10_categories = top10_categories.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 10).select("category","total")
+  top10_categories.write.format('jdbc').options(
+          url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+          driver='com.mysql.jdbc.Driver',
+          dbtable='top10_categories',
+          user='assignment_user',
+          password='Pa$$word').mode('overwrite').save()
+  '''
+  Step 6: Transform the data in memory
+  Determine the top 5 stores by province and top 10 product categories by department
+  '''
+  #top 5 store by province
+  top5_stores_by_province = df.groupby('province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('province','total', ascending=False)
+  window = Window.partitionBy(top5_stores_by_province['province']).orderBy(top5_stores_by_province['total'].desc())
+  top5_stores_by_province = top5_stores_by_province.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 5).select("province","store_num","total")    
+  top5_stores_by_province = top5_stores_by_province.withColumn("total", round(top5_stores_by_province.total))
+  top5_stores_by_province.write.format('jdbc').options(
+        url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+        driver='com.mysql.jdbc.Driver',
+        dbtable='top5_stores_by_province',
+        user='assignment_user',
+        password='Pa$$word').mode('overwrite').save() 
+  #top 10 product categories by department
+  top10_cat_by_dept = df.groupby('department','category').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('department','Total', ascending=False)
+  window = Window.partitionBy(top10_cat_by_dept['department']).orderBy(top10_cat_by_dept['total'].desc())
+  top10_cat_by_dept = top10_cat_by_dept.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 10).select("department","category","total")    
+  top10_cat_by_dept = top10_cat_by_dept.withColumn("total", round(top10_cat_by_dept.total))
+  top10_cat_by_dept.write.format('jdbc').options(
+        url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+        driver='com.mysql.jdbc.Driver',
+        dbtable='top5_stores_by_province',
+        user='assignment_user',
+        password='Pa$$word').mode('overwrite').save() 
+  '''
+  Step 8: Display your analytics
+  Create a dashboard showing absolute numbers, trend for last 12 months and year over year (YoY) for the following metrics:
+  • sales, units, distinct count of transactions, distinct count of collectors
+  • Display the metrics for loyalty customers, non-loyalty customers and overall
+  '''
+  #Total Sales by cutomer type
   totals = df.filter(df.customer_type == 'Loyalty').groupby('customer_type').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total")
   totals = totals.withColumn('measure', lit('total sales'))
   temp = df.filter(df.customer_type == 'NonLoyalty').groupby('customer_type').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total")
   temp = temp.withColumn('measure', lit('total sales'))
   totals = totals.union(temp)
-  #%%%%%%%%%%%Total Units by cutomer type%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  temp = df.agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total")
+  temp = temp.withColumn('measure', lit('total sales'))
+  temp = temp.withColumn('customer_type', lit('Overall'))
+  totals = totals.union(temp.select('customer_type','total','measure'))
+  #Total Units by cutomer type
   temp = df.filter(df.customer_type == 'Loyalty').groupby('customer_type').agg({'units':'sum'}).withColumnRenamed("sum(units)", "total")
   temp = temp.withColumn('measure', lit('total units'))
   totals = totals.union(temp)
   temp = df.filter(df.customer_type == 'NonLoyalty').groupby('customer_type').agg({'units':'sum'}).withColumnRenamed("sum(units)", "total")
   temp = temp.withColumn('measure', lit('total units'))
   totals = totals.union(temp)
-  #%%%%%%%%%%%Distinct transaction Counts by cutomer type%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  temp = df.agg({'units':'sum'}).withColumnRenamed("sum(units)", "total")
+  temp = temp.withColumn('measure', lit('total units'))
+  temp = temp.withColumn('customer_type', lit('Overall'))
+  totals = totals.union(temp.select('customer_type','total','measure'))
+  #Distinct transaction Counts by cutomer type
   temp = df.filter(df.customer_type == 'Loyalty').select('trans_key').distinct().agg({'trans_key':'count'}).withColumnRenamed("count(trans_key)", "total")
   temp = temp.withColumn('measure', lit('total distinct trasactions'))
   temp = temp.withColumn('customer_type', lit('Loyalty'))
@@ -108,7 +195,11 @@ if __name__ == "__main__":
   temp = temp.withColumn('measure', lit('total distinct trasactions'))
   temp = temp.withColumn('customer_type', lit('NonLoyalty'))
   totals = totals.union(temp.select('customer_type','total','measure'))
-  #%%%%%%%%%%%Distinct Collector Counts by cutomer type%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  temp = df.select('trans_key').distinct().agg({'trans_key':'count'}).withColumnRenamed("count(trans_key)", "total")
+  temp = temp.withColumn('measure', lit('total distinct trasactions'))
+  temp = temp.withColumn('customer_type', lit('Overall'))
+  totals = totals.union(temp.select('customer_type','total','measure'))
+  #Distinct Collector Counts by cutomer type
   temp = df.filter(df.customer_type == 'Loyalty').select('collector_key').distinct().agg({'collector_key':'count'}).withColumnRenamed("count(collector_key)", "total")
   temp = temp.withColumn('measure', lit('total distinct collectors'))
   temp = temp.withColumn('customer_type', lit('Loyalty'))
@@ -117,7 +208,10 @@ if __name__ == "__main__":
   temp = temp.withColumn('measure', lit('total distinct collectors'))
   temp = temp.withColumn('customer_type', lit('NonLoyalty'))
   totals = totals.union(temp.select('customer_type','total','measure'))
-  #%%%%%%%%%%Saving the data in the database%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  temp = df.select('collector_key').distinct().agg({'collector_key':'count'}).withColumnRenamed("count(collector_key)", "total")
+  temp = temp.withColumn('measure', lit('total distinct collectors'))
+  temp = temp.withColumn('customer_type', lit('All'))
+  totals = totals.union(temp.select('customer_type','total','measure'))
   totals.write.format('jdbc').options(
             url='jdbc:mysql://35.238.212.81:3306/assignment_db',
             driver='com.mysql.jdbc.Driver',
@@ -152,14 +246,16 @@ if __name__ == "__main__":
   temp = temp.groupby('customer_type','trans_dt').agg({'collector_key':'count'}).withColumnRenamed("count(collector_key)", "total")
   temp = temp.withColumn('measure', lit('total distinct collectors'))
   trends = trends.union(temp)
-  #%%%%%%%%%%Saving the data in the database
   trends.write.format('jdbc').options(
             url='jdbc:mysql://35.238.212.81:3306/assignment_db',
             driver='com.mysql.jdbc.Driver',
             dbtable='trends',
             user='assignment_user',
             password='Pa$$word').mode('overwrite').save()
-  #%%%%%%%%%%Top State
+  '''
+  #Other KPIs
+  '''
+  #Top State
   top_provinces = df.groupby('customer_type','province').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
   window = Window.partitionBy(top_provinces['customer_type']).orderBy(top_provinces['total'].desc())
   top_provinces = top_provinces.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("customer_type","province","total")
@@ -169,7 +265,7 @@ if __name__ == "__main__":
             dbtable='top_provinces',
             user='assignment_user',
             password='Pa$$word').mode('overwrite').save()
-  #%%%%%%%%%%Top Store
+  #Top Store
   top_stores = df.groupby('customer_type','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
   window = Window.partitionBy(top_stores['customer_type']).orderBy(top_stores['total'].desc())
   top_stores = top_stores.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("customer_type","store_num","total")
@@ -179,7 +275,7 @@ if __name__ == "__main__":
             dbtable='top_stores',
             user='assignment_user',
             password='Pa$$word').mode('overwrite').save()
-  #%%%%%%%%%%Top store each province, customer type
+  #Top store each province, customer type
   top_stores_provinces = df.groupby('customer_type','province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','province','total', ascending=False)
   window = Window.partitionBy(top_stores_provinces['customer_type'], top_stores_provinces['province']).orderBy(top_stores_provinces['total'].desc())
   top_stores_provinces = top_stores_provinces.select('*', rank().over(window).alias('rank')).filter(col('rank') == 1).select("customer_type","province","store_num","total")
@@ -189,30 +285,6 @@ if __name__ == "__main__":
           dbtable='top_stores_provinces',
           user='assignment_user',
           password='Pa$$word').mode('overwrite').save() 
-  #Top store average store overall
-  top_stores_provinces_overall = df.groupby('province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('province','total', ascending=False)
-  average_store_province_overall = top_stores_provinces_overall.groupby('province').agg({'total':'avg'}).withColumnRenamed("avg(total)", "average").orderBy('average', ascending=False)
-  window = Window.partitionBy(top_stores_provinces_overall['province']).orderBy(top_stores_provinces_overall['total'].desc())
-  top_stores_provinces_overall = top_stores_provinces_overall.select('*', rank().over(window).alias('rank')).filter(col('rank') == 1).select("province","store_num","total")
-  top_to_average_overall = top_stores_provinces_overall.join(average_store_province_overall, top_stores_provinces_overall.province == average_store_province_overall.province).drop(average_store_province_overall.province).\
-                           select("province", "store_num", "total", "average")
-  top_to_average_overall = top_to_average_overall.withColumn("performance_to_average", concat(round(top_to_average_overall['total']*100/top_to_average_overall['average']), lit('%')))
-  top_to_average_overall.write.format('jdbc').options(
-          url='jdbc:mysql://35.238.212.81:3306/assignment_db',
-          driver='com.mysql.jdbc.Driver',
-          dbtable='top_to_average_overall',
-          user='assignment_user',
-          password='Pa$$word').mode('overwrite').save() 
-  #top 5 store by province
-  top5_stores_by_province = df.groupby('province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('province','total', ascending=False)
-  window = Window.partitionBy(top5_stores_by_province['province']).orderBy(top5_stores_by_province['total'].desc())
-  top5_stores_by_province = top5_stores_by_province.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 5).select("province","store_num","total")    
-  top5_stores_by_province.write.format('jdbc').options(
-        url='jdbc:mysql://35.238.212.81:3306/assignment_db',
-        driver='com.mysql.jdbc.Driver',
-        dbtable='top5_stores_by_province',
-        user='assignment_user',
-        password='Pa$$word').mode('overwrite').save() 
   #Uncache df
   df.unpersist()
 
