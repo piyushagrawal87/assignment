@@ -70,6 +70,7 @@ if __name__ == "__main__":
         temp_df = temp_df.withColumnRenamed("trans_id", "trans_key")
         temp_df = temp_df.select(df.columns)
         df = temp_df.union(df)
+    print("read " + file)
 
   '''
   Step 3: Prepare & Cleanse the data in memory
@@ -99,8 +100,7 @@ if __name__ == "__main__":
   average_store_province_overall = top_stores_provinces_overall.groupby('province').agg({'total':'avg'}).withColumnRenamed("avg(total)", "average").orderBy('average', ascending=False)
   window = Window.partitionBy(top_stores_provinces_overall['province']).orderBy(top_stores_provinces_overall['total'].desc())
   top_stores_provinces_overall = top_stores_provinces_overall.select('*', rank().over(window).alias('rank')).filter(col('rank') == 1).select("province","store_num","total")
-  top_to_average_overall = top_stores_provinces_overall.join(average_store_province_overall, top_stores_provinces_overall.province == average_store_province_overall.province).drop(average_store_province_overall.province).\
-                           select("province", "store_num", "total", "average")
+  top_to_average_overall = top_stores_provinces_overall.join(average_store_province_overall, top_stores_provinces_overall.province == average_store_province_overall.province).drop(average_store_province_overall.province).select("province", "store_num", "total", "average")
   top_to_average_overall = top_to_average_overall.withColumn("performance_to_average", concat(round(top_to_average_overall['total']*100/top_to_average_overall['average']), lit('%')))
   top_to_average_overall.write.format('jdbc').options(
           url='jdbc:mysql://35.238.212.81:3306/assignment_db',
