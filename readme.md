@@ -70,9 +70,9 @@ The framework implemented above doesn't implement continuous integration fully b
 
 This process needed more exploration and time committement which was not possible considering procument of technologies/tools for the assignment and completing the other KPI asks in the assignment itself were extermely timeconsuming.
 
-Thanks a lot for reading till the end! I hope you enjoyed learning more about how went about this assignment. I would love to hear any feedback on the work done! 
+**Thanks a lot for reading till the end! I hope you enjoyed learning more about how went about this assignment. I would love to hear any feedback on the work done! 
 
-Thanks again!!
+**Thanks again!!
 
 
 
