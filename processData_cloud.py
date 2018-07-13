@@ -88,7 +88,7 @@ if __name__ == "__main__":
   #Identifying Non Loyalty and Loyalty Customers
   df = df.withColumn("customer_type",when(col("collector_key") < 0, lit('NonLoyalty')).otherwise(lit('Loyalty')))
 
-  #Bring df to cache
+  #Bringing df to cache
   df.cache()
 
   '''
@@ -107,7 +107,7 @@ if __name__ == "__main__":
           driver='com.mysql.jdbc.Driver',
           dbtable='top_to_average_overall',
           user='assignment_user',
-          password='Pa$$word').mode('overwrite').save() 
+          password='xxxxxxx').mode('overwrite').save() 
 
   '''
   Step 5: Transform the data in memory
@@ -122,7 +122,7 @@ if __name__ == "__main__":
           driver='com.mysql.jdbc.Driver',
           dbtable='loyalty_vs_nonloyalty',
           user='assignment_user',
-          password='Pa$$word').mode('overwrite').save() 
+          password='xxxxxxx').mode('overwrite').save() 
   #Categories and sales
   top10_categories = df.groupby('category').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy("total",ascending=False) 
   window =  Window.partitionBy().orderBy(top10_categories['total'].desc())
@@ -132,7 +132,7 @@ if __name__ == "__main__":
           driver='com.mysql.jdbc.Driver',
           dbtable='top10_categories',
           user='assignment_user',
-          password='Pa$$word').mode('overwrite').save()
+          password='xxxxxxx').mode('overwrite').save()
   '''
   Step 6: Transform the data in memory
   Determine the top 5 stores by province and top 10 product categories by department
@@ -147,7 +147,7 @@ if __name__ == "__main__":
         driver='com.mysql.jdbc.Driver',
         dbtable='top5_stores_by_province',
         user='assignment_user',
-        password='Pa$$word').mode('overwrite').save() 
+        password='xxxxxxx').mode('overwrite').save() 
   #top 10 product categories by department
   top10_cat_by_dept = df.groupby('department','category').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('department','Total', ascending=False)
   window = Window.partitionBy(top10_cat_by_dept['department']).orderBy(top10_cat_by_dept['total'].desc())
@@ -158,7 +158,7 @@ if __name__ == "__main__":
         driver='com.mysql.jdbc.Driver',
         dbtable='top5_stores_by_province',
         user='assignment_user',
-        password='Pa$$word').mode('overwrite').save() 
+        password='xxxxxxx').mode('overwrite').save() 
   '''
   Step 8: Display your analytics
   Create a dashboard showing absolute numbers, trend for last 12 months and year over year (YoY) for the following metrics:
@@ -217,7 +217,7 @@ if __name__ == "__main__":
             driver='com.mysql.jdbc.Driver',
             dbtable='totals',
             user='assignment_user',
-            password='Pa$$word').mode('overwrite').save()
+            password='xxxxxxx').mode('overwrite').save()
   #Making transaction date consistent (/,-, consistent) and replacing day part of the trans_dt to 01 to calculate monthly aggregate
   df_trans_date_slash = df.filter(df.trans_dt.contains('/'))
   split_col = split(df_trans_date_slash['trans_dt'], '/')
@@ -238,14 +238,14 @@ if __name__ == "__main__":
   temp = df.groupby('trans_dt').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('trans_dt')
   temp = temp.withColumn('measure', lit('total sales'))
   temp = temp.withColumn('customer_type', lit('Overall'))
-  trends = trends.union(temp)
+  trends = trends.union(temp.select('customer_type','trans_dt','total','measure'))
   temp = df.groupby('customer_type','trans_dt').agg({'units':'sum'}).withColumnRenamed("sum(units)", "total").orderBy('customer_type','trans_dt')
   temp = temp.withColumn('measure', lit('total units'))
   trends = trends.union(temp)
   temp = df.groupby('trans_dt').agg({'units':'sum'}).withColumnRenamed("sum(units)", "total").orderBy('trans_dt')
   temp = temp.withColumn('measure', lit('total units'))
   temp = temp.withColumn('customer_type', lit('Overall'))
-  trends = trends.union(temp)
+  trends = trends.union(temp.select('customer_type','trans_dt','total','measure'))
   temp = df.groupby('customer_type','trans_dt','trans_key').agg(collect_list('trans_key').getItem(0).alias('trans_key_temp'))
   temp = temp.groupby('customer_type','trans_dt').agg({'trans_key':'count'}).withColumnRenamed("count(trans_key)", "total")
   temp = temp.withColumn('measure', lit('total distinct trans'))
@@ -254,7 +254,7 @@ if __name__ == "__main__":
   temp = temp.groupby('trans_dt').agg({'trans_key':'count'}).withColumnRenamed("count(trans_key)", "total")
   temp = temp.withColumn('measure', lit('total distinct trans'))
   temp = temp.withColumn('customer_type', lit('Overall'))
-  trends = trends.union(temp)  
+  trends = trends.union(temp.select('customer_type','trans_dt','total','measure'))  
   temp = df.groupby('customer_type','trans_dt','collector_key').agg(collect_list('collector_key').getItem(0).alias('collector_key_temp'))
   temp = temp.groupby('customer_type','trans_dt').agg({'collector_key':'count'}).withColumnRenamed("count(collector_key)", "total")
   temp = temp.withColumn('measure', lit('total distinct collectors'))
@@ -263,13 +263,13 @@ if __name__ == "__main__":
   temp = temp.groupby('trans_dt').agg({'collector_key':'count'}).withColumnRenamed("count(collector_key)", "total")
   temp = temp.withColumn('measure', lit('total distinct collectors'))
   temp = temp.withColumn('customer_type', lit('Overall'))
-  trends = trends.union(temp)
+  trends = trends.union(temp.select('customer_type','trans_dt','total','measure'))
   trends.write.format('jdbc').options(
             url='jdbc:mysql://35.238.212.81:3306/assignment_db',
             driver='com.mysql.jdbc.Driver',
             dbtable='trends',
             user='assignment_user',
-            password='Pa$$word').mode('overwrite').save()
+            password='xxxxxxx').mode('overwrite').save()
   '''
   #Other KPIs
   '''
@@ -282,7 +282,7 @@ if __name__ == "__main__":
             driver='com.mysql.jdbc.Driver',
             dbtable='top_provinces',
             user='assignment_user',
-            password='Pa$$word').mode('overwrite').save()
+            password='xxxxxxx').mode('overwrite').save()
   #Top Store
   top_stores = df.groupby('customer_type','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
   window = Window.partitionBy(top_stores['customer_type']).orderBy(top_stores['total'].desc())
@@ -292,7 +292,7 @@ if __name__ == "__main__":
             driver='com.mysql.jdbc.Driver',
             dbtable='top_stores',
             user='assignment_user',
-            password='Pa$$word').mode('overwrite').save()
+            password='xxxxxxx').mode('overwrite').save()
   #Top store each province, customer type
   top_stores_provinces = df.groupby('customer_type','province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','province','total', ascending=False)
   window = Window.partitionBy(top_stores_provinces['customer_type'], top_stores_provinces['province']).orderBy(top_stores_provinces['total'].desc())
@@ -302,7 +302,7 @@ if __name__ == "__main__":
           driver='com.mysql.jdbc.Driver',
           dbtable='top_stores_provinces',
           user='assignment_user',
-          password='Pa$$word').mode('overwrite').save() 
+          password='xxxxxxx').mode('overwrite').save() 
   #Uncache df
   df.unpersist()
 
