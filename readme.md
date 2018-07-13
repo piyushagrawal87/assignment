@@ -3,13 +3,13 @@ The data provided is from a fake grocery store called ACME. There are 12 CSV fil
 
 ## Challenges
 ### Step 1: Data Gathering & Ingestion
-uploadfiles_to_cloud.py pushes files from local to google cloud bucket in an autmated way. This code requires uses a hard-coded folder location (which obviously can be parameterized) with an optional files name as an input parameter to identify the all files in a folder/a given file in a folder. This program overwrites the files if already available in cloud storage or uploads a copy, if not available. In production, this script can be scheduled either using a cron job or with any scheduler (oozie) to push data in an automated manner.
+uploadfiles_to_cloud.py pushes files from local to google cloud bucket in an automated way. This code requires uses a hard-coded folder location (which obviously can be parameterized) with an optional files name as an input parameter to identify the all files in a folder/a given file in a folder. This program overwrites the files if already available in cloud storage or uploads a copy, if not available. In production, this script can be scheduled either using a cron job or with any scheduler (oozie) to push data in an automated manner.
 
 ### Step 2: Secure the data
-The cloud storage used for storing the input files is private and access to it limited to only authorized inviduals. Google Cloud Storage always encrypts data on the server side, before it is written to disks, so data at rest is encrypted here. gcloud API for python implements "Encryption in transit" which protects data if communications are intercepted while data moves between local/source and the cloud provider or between two services. This protection is achieved by encrypting the data before transmission; authenticating the endpoints; and decrypting and verifying the data on arrival. For example, Transport Layer Security (TLS) is often used to encrypt data in transit for transport security, and Secure/Multipurpose Internet Mail Extensions (S/MIME) is used often for email message security.
+The cloud storage used for storing the input files is private and access to it limited to only authorized individuals. Google Cloud Storage always encrypts data on the server side, before it is written to disks, so data at rest is encrypted here. gcloud API for python implements "Encryption in transit" which protects data if communications are intercepted while data moves between local/source and the cloud provider or between two services. This protection is achieved by encrypting the data before transmission; authenticating the endpoints; and decrypting and verifying the data on arrival. For example, Transport Layer Security (TLS) is often used to encrypt data in transit for transport security, and Secure/Multipurpose Internet Mail Extensions (S/MIME) is used often for email message security.
 
 ### Step 3: Prepare & Cleanse the data in memory
-processData_cloud.py implements this steps. Following steps are cover the implementation of preparing and cleaning the data in memory
+processData_cloud.py implements following steps. Following steps are cover the implementation of preparing and cleaning the data in memory
 * Reading all trans fact files (1 to 10).
 * Fixing inconsistencies in the header (different sequence/ different header names).
 * combining trans fact files to make one dataframe.
@@ -24,7 +24,7 @@ This section of code displays top 3 provinces as per total sales.
 * Top Stores
 This section of code displays top 3 stores as per total sales.
 * Top store to Average Store
-This section calculates, sales of top stores in each province, avegrage sales of each store in a province and then provides % performance KPI for top stores against average store.
+This section calculates, sales of top stores in each province, average sales of each store in a province and then provides % performance KPI for top stores against average store.
 
 ### Step 5: Transform the data in memory
 #### loyalty program vs non-loyalty customers and what category of products is contributing to most of ACME’s sales
@@ -39,7 +39,7 @@ This section calculates top 10 categories and total sales.
 * Top 5 store by province
 This section calculates top 5 stores for each given province
 * Top 10 Product categories per department
-This section calculates top 10 categories for each given departments.
+This section calculates top 10 categories for each given department.
 
 ### Step 7: Bring in the database
 #### Store the results of your analytics into a database engine in a cloud platform of tour choice. 
@@ -53,9 +53,9 @@ Each section outlines above stores the results in a MYSQL database on Google clo
 
 
 sales, units, distinct count of transactions, distinct count of collectors are calculated month over month which can then be used to calculate YOY numbers in any BI tool.
-dashboard_new.pbis contains a power BI dashboard with Total sales, Total Units, Total unique txns and Total unique collectors for Loyalty, NonLoyalty and Overall. This dashboard also has these number trending MOM.
+dashboard_new.pbis contains a power BI dashboard with Total sales, Total Units, Total unique txns and Total unique collectors for Loyalty, NonLoyalty and Overall. This dashboard also has the numbers trending MOM.
 
-Other pages of the dahsboard are used to display th results of steps 4 to 7.
+Other pages of the dashboard are used to display th results of steps 4 to 7.
 
 
 ### Other details
@@ -66,9 +66,9 @@ Unit tests can be executed by CDing into the code folder and executing "python -
 
 
 ### Continuous Integration
-The framework implemented above doesn't implement continuous integration fully but has all parts/components which are pivotal for CI implementation of spark data pipelines. The idea is to use Git hooks to trigger a batch script on push into a personal branch. The bash script will SSH into the cluster, execute some git pull command to download the pushed code in a folder, run unit test (outlines above) and respond Pass/Fail based on unit test result. Git push can then be merged to Master for successful unit tests or rolledback on failed unit test. 
+The framework implemented above doesn't implement continuous integration fully but has all parts/components which are pivotal for CI implementation of spark data pipelines. The idea is to use Git hooks to trigger a batch script on push into a personal branch. The bash script will SSH into the cluster, execute some git pull command to download the pushed code in a folder, run unit test (outlines above) and respond Pass/Fail based on unit test result. Git push can then be merged to Master for successful unit tests or rolled back on failed unit test. 
 
-This process needed more exploration and time committement which was not possible considering procument of technologies/tools for the assignment and completing the other KPI asks in the assignment itself were extermely timeconsuming.
+This process needed more exploration and time commitment which was not possible considering procurement of technologies/tools for the assignment and completing the other KPI asks in the assignment itself were extremely time-consuming.
 
 #### Thanks a lot for reading till the end! I hope you enjoyed learning more about how I went about this assignment. I would love to know your feedback.
 
