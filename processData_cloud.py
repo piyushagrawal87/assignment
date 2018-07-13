@@ -96,6 +96,37 @@ if __name__ == "__main__":
   The president of company wants to understand which provinces and stores are performing well and 
   how much are the top stores in each province performing compared with the average store of the province.
   '''
+  #Top Province
+  top_provinces = df.groupby('customer_type','province').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
+  window = Window.partitionBy(top_provinces['customer_type']).orderBy(top_provinces['total'].desc())
+  top_provinces = top_provinces.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("customer_type","province","total")
+  temp = df.groupby('province').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('total', ascending=False)
+  window = Window.partitionBy().orderBy(temp['total'].desc())
+  temp = temp.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("province","total")
+  temp = temp.withColumn("customer_type", lit("Overall"))
+  top_provinces = top_provinces.union(temp.select('customer_type','province','total'))
+  top_provinces.write.format('jdbc').options(
+            url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+            driver='com.mysql.jdbc.Driver',
+            dbtable='top_provinces',
+            user='assignment_user',
+            password='xxxxxxx').mode('overwrite').save()
+  #Top Store
+  top_stores = df.groupby('customer_type','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
+  window = Window.partitionBy(top_stores['customer_type']).orderBy(top_stores['total'].desc())
+  top_stores = top_stores.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("customer_type","store_num","total")
+  temp = df.groupby('store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('total', ascending=False)
+  window = Window.partitionBy().orderBy(temp['total'].desc())
+  temp = temp.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("store_num","total")
+  temp = temp.withColumn("customer_type", lit("Overall"))
+  top_stores = top_stores.union(temp.select('customer_type','store_num','total'))
+  top_stores.write.format('jdbc').options(
+            url='jdbc:mysql://35.238.212.81:3306/assignment_db',
+            driver='com.mysql.jdbc.Driver',
+            dbtable='top_stores',
+            user='assignment_user',
+            password='xxxxxxx').mode('overwrite').save()
+  #Top store to Average Store
   top_stores_provinces_overall = df.groupby('province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('province','total', ascending=False)
   average_store_province_overall = top_stores_provinces_overall.groupby('province').agg({'total':'avg'}).withColumnRenamed("avg(total)", "average").orderBy('average', ascending=False)
   window = Window.partitionBy(top_stores_provinces_overall['province']).orderBy(top_stores_provinces_overall['total'].desc())
@@ -273,26 +304,6 @@ if __name__ == "__main__":
   '''
   #Other KPIs
   '''
-  #Top State
-  top_provinces = df.groupby('customer_type','province').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
-  window = Window.partitionBy(top_provinces['customer_type']).orderBy(top_provinces['total'].desc())
-  top_provinces = top_provinces.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("customer_type","province","total")
-  top_provinces.write.format('jdbc').options(
-            url='jdbc:mysql://35.238.212.81:3306/assignment_db',
-            driver='com.mysql.jdbc.Driver',
-            dbtable='top_provinces',
-            user='assignment_user',
-            password='xxxxxxx').mode('overwrite').save()
-  #Top Store
-  top_stores = df.groupby('customer_type','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','total', ascending=False)
-  window = Window.partitionBy(top_stores['customer_type']).orderBy(top_stores['total'].desc())
-  top_stores = top_stores.select('*', rank().over(window).alias('rank')).filter(col('rank') <= 3).select("customer_type","store_num","total")
-  top_stores.write.format('jdbc').options(
-            url='jdbc:mysql://35.238.212.81:3306/assignment_db',
-            driver='com.mysql.jdbc.Driver',
-            dbtable='top_stores',
-            user='assignment_user',
-            password='xxxxxxx').mode('overwrite').save()
   #Top store each province, customer type
   top_stores_provinces = df.groupby('customer_type','province','store_num').agg({'sales':'sum'}).withColumnRenamed("sum(sales)", "total").orderBy('customer_type','province','total', ascending=False)
   window = Window.partitionBy(top_stores_provinces['customer_type'], top_stores_provinces['province']).orderBy(top_stores_provinces['total'].desc())
